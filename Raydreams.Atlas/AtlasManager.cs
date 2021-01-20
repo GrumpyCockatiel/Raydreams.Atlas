@@ -2,8 +2,6 @@
 using System.Net.Http;
 using System.Text;
 using System.Net;
-using System.Security.Cryptography;
-using System.Text.RegularExpressions;
 using System.IO;
 using System.IO.Compression;
 using Newtonsoft.Json;
@@ -31,6 +29,9 @@ namespace Raydreams.Atlas
     public class AtlasManager
     {
         #region [ Fields ]
+
+        /// <summary>What user agent string do you want to send to Atlas</summary>
+        private static readonly string _userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_2) AppleWebKit/601.3.9 (KHTML, like Gecko) Version/9.0.2 Safari/601.3.9";
 
         /// <summary>The Atlas API Authority</summary>
         private string _apiBase = "https://cloud.mongodb.com";
@@ -76,9 +77,10 @@ namespace Raydreams.Atlas
             HttpClient client = new HttpClient( ( new HttpClientHandler { Credentials = creds } ) );
             client.DefaultRequestHeaders.Add( "Accept", "application/json" );
             client.DefaultRequestHeaders.Add( "Host", "cloud.mongodb.com" );
-            client.DefaultRequestHeaders.Add( "User-Agent", "PostmanRuntime/7.26.8" );
+            client.DefaultRequestHeaders.Add( "User-Agent", _userAgent );
             client.DefaultRequestHeaders.Add( "Connection", "keep-alive" );
 
+            // what kind of encoding do you want back
             string encoding = ( this.ZipResponse ) ? "gzip, deflate, br" : "json";
             client.DefaultRequestHeaders.Add( "Accept-Encoding", encoding );
 
@@ -123,7 +125,7 @@ namespace Raydreams.Atlas
         /// <returns></returns>
         public async Task<AtlasProjectClusters> GetClusters( string projID )
         {
-            if ( String.IsNullOrWhiteSpace( projID )  )
+            if ( String.IsNullOrWhiteSpace( projID ) )
                 return null;
 
             projID = projID.Trim();
@@ -171,7 +173,7 @@ namespace Raydreams.Atlas
                 throw;
             }
 
-            string json = ( IsGZipped( final ) ) ? Decompress(final) : await final.Content.ReadAsStringAsync();
+            string json = ( IsGZipped( final ) ) ? Decompress( final ) : await final.Content.ReadAsStringAsync();
             return JsonConvert.DeserializeObject<AtlasCluster>( json );
         }
 
@@ -180,7 +182,8 @@ namespace Raydreams.Atlas
         /// <param name="clusterName"></param>
         /// <param name="pause">Pass true to pause the cluster, false to resume the cluster</param>
         /// <returns></returns>
-        public AtlasCluster PauseCluster( string projID, string clusterName, bool pause = false )
+        /// <remarks>PATCH is similar to POST but Pause is the only method using this for now so its not yet broken out</remarks>
+        public async Task<AtlasCluster> PauseCluster( string projID, string clusterName, bool pause = false )
         {
             if ( String.IsNullOrWhiteSpace( projID ) || String.IsNullOrWhiteSpace( clusterName ) )
                 return null;
@@ -188,8 +191,7 @@ namespace Raydreams.Atlas
             projID = projID.Trim();
             clusterName = clusterName.Trim();
 
-            string path = $"{_dir}/groups/{projID}/clusters/{clusterName}";
-            Uri uri = new Uri( $"{_apiBase}{path}" );
+            Uri uri = new Uri( $"{_apiBase}{_dir}/groups/{projID}/clusters/{clusterName}" );
 
             HttpResponseMessage final = null;
 
@@ -198,44 +200,43 @@ namespace Raydreams.Atlas
                 // make a client
                 HttpClient client = this.Client( uri );
 
-                var bodyObj = new { paused = pause };
-                string body = JsonConvert.SerializeObject( bodyObj ).ToLower();
+                // roll the body
+                string body = JsonConvert.SerializeObject( new { paused = pause } ).ToLower();
 
-                HttpRequestMessage msg1 = new HttpRequestMessage( HttpMethod.Patch, uri );
-                msg1.Headers.Clear();
+                HttpRequestMessage req1 = new HttpRequestMessage( HttpMethod.Patch, uri );
+                req1.Headers.Clear();
 
                 // add the body
-                msg1.Content = new StringContent( body, Encoding.UTF8, "application/json" );
+                req1.Content = new StringContent( body, Encoding.UTF8, "application/json" );
                 byte[] bytes = Encoding.UTF8.GetBytes( body );
-                msg1.Content.Headers.Add( "Content-Length", bytes.Length.ToString() );
+                req1.Content.Headers.Add( "Content-Length", bytes.Length.ToString() );
 
                 // send the first request
-                HttpResponseMessage response1 = client.SendAsync( msg1 ).GetAwaiter().GetResult();
+                HttpResponseMessage resp1 = await client.SendAsync( req1 );
 
                 // at this point we expect a 401 with details for the Authorization header
 
                 // pull apart the auth response
-                string authHeader = response1.Headers.WwwAuthenticate.ToString();
+                string authHeader = resp1.Headers.WwwAuthenticate?.ToString();
                 WWWAuthFields header = this.ParseWWWAuth( authHeader );
 
                 // send a 2nd request with Authorization populated with details from www-authenticate
-                HttpRequestMessage msg2 = new HttpRequestMessage( HttpMethod.Patch, uri );
-                msg2.Headers.Clear();
-                msg2.Headers.Add( "Authorization", this.GetDigestHeader( $"{path}", header, HttpMethod.Patch ) );
+                HttpRequestMessage req2 = new HttpRequestMessage( HttpMethod.Patch, uri );
+                req2.Headers.Clear();
+                req2.Headers.Add( "Authorization", this.GetDigestHeader( uri.AbsolutePath, header, HttpMethod.Patch ) );
 
-                // add the body
-                msg2.Content = msg1.Content;
-                //msg2.Content = new StringContent( body, Encoding.UTF8, "application/json" );
-                //msg2.Content.Headers.Add( "Content-Length", bytes.Length.ToString() );
+                // add the body again
+                req2.Content = req1.Content;
 
-                final = client.SendAsync( msg2 ).GetAwaiter().GetResult();
+                // send the 2nd request
+                final = await client.SendAsync( req2 );
             }
             catch ( System.Exception )
             {
                 throw;
             }
 
-            string json = final.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            string json = ( IsGZipped( final ) ) ? Decompress( final ) : await final.Content.ReadAsStringAsync();
             return JsonConvert.DeserializeObject<AtlasCluster>( json );
         }
 
@@ -243,14 +244,14 @@ namespace Raydreams.Atlas
 
         #region [ Private Methods ]
 
-        /// <summary></summary>
+        /// <summary>Rolls a generic GET request to Atlas</summary>
         /// <param name="uri"></param>
         /// <returns></returns>
         protected async Task<HttpResponseMessage> GetRequest( Uri uri )
         {
             HttpResponseMessage final = null;
 
-            if ( uri == null || String.IsNullOrWhiteSpace(uri.AbsoluteUri) )
+            if ( uri == null || String.IsNullOrWhiteSpace( uri.AbsoluteUri ) )
                 return final;
 
             // setup a new client
@@ -261,12 +262,12 @@ namespace Raydreams.Atlas
             req1.Headers.Clear();
 
             // send the 'login' request
-            HttpResponseMessage response1 = await client.SendAsync( req1 );
+            HttpResponseMessage resp1 = await client.SendAsync( req1 );
 
             // at this point we expect a 401 with details for the Authorization header
 
             // pull apart the auth response
-            string authHeader = response1.Headers.WwwAuthenticate.ToString();
+            string authHeader = resp1.Headers.WwwAuthenticate?.ToString();
             WWWAuthFields header = this.ParseWWWAuth( authHeader );
 
             // send a 2nd request with Authorization populated with details from www-authenticate
@@ -281,7 +282,7 @@ namespace Raydreams.Atlas
         /// <summary>Checks to see if the Content Response is GZipped</summary>
         /// <param name="resp"></param>
         /// <returns></returns>
-        private static bool IsGZipped(HttpResponseMessage resp )
+        private static bool IsGZipped( HttpResponseMessage resp )
         {
             if ( resp == null || resp.Content == null || resp.Content.Headers == null )
                 return false;
@@ -293,6 +294,7 @@ namespace Raydreams.Atlas
         }
 
         /// <summary>Create an Auth Header Digest</summary>
+        /// <remarks>If you continue to use the orginal Auth request you need to increment the nonce value each request</remarks>
         private string GetDigestHeader( string dir, WWWAuthFields header, HttpMethod method )
         {
             // increment on subsequent calls if you re-use
@@ -301,9 +303,9 @@ namespace Raydreams.Atlas
             // create a client nonce
             string cnonce = this.Noncer( 8 );
 
-            string h1 = HashToMD5( $"{_publicKey}:{header.Realm}:{_privateKey}" );
-            string h2 = HashToMD5( $"{method.ToString().ToUpperInvariant()}:{dir}" );
-            string resp = HashToMD5( $"{h1}:{header.Nonce}:{nc:00000000}:{cnonce}:{header.QoP}:{h2}" );
+            string h1 = $"{_publicKey}:{header.Realm}:{_privateKey}".HashToMD5();
+            string h2 = $"{method.ToString().ToUpperInvariant()}:{dir}".HashToMD5();
+            string resp = $"{h1}:{header.Nonce}:{nc:00000000}:{cnonce}:{header.QoP}:{h2}".HashToMD5();
 
             return $"Digest username=\"{_publicKey}\", realm=\"{header.Realm}\", nonce=\"{header.Nonce}\", uri=\"{dir}\", algorithm=MD5, response=\"{resp}\", qop={header.QoP}, nc={nc:00000000}, cnonce=\"{cnonce}\"";
         }
@@ -311,34 +313,25 @@ namespace Raydreams.Atlas
         /// <summary>Parses all the WWW Auth Fields to a struct</summary>
         /// <param name="header"></param>
         /// <returns></returns>
-        private WWWAuthFields ParseWWWAuth( string header ) => new WWWAuthFields
+        /// <remarks>
+        /// Use whatever parsing technique makes you happy. A couple are in StringExtensions
+        /// An www auth header will look something like this
+        /// Digest realm="MMS Public API", domain="", nonce="kWVA9Ciu7lNaN5QdjPe8kxPMReVjbt+B", algorithm=MD5, qop="auth", stale=false
+        /// </remarks>
+        private WWWAuthFields ParseWWWAuth( string header )
         {
-            Realm = ParseField( "realm", header ),
-            Nonce = ParseField( "nonce", header ),
-            QoP = ParseField( "qop", header ),
-        };
+            WWWAuthFields results = new WWWAuthFields();
 
-        /// <summary>Get a value from the www auth string</summary>
-        private static string ParseField( string varName, string header )
-        {
-            var regex = new Regex( String.Format( @"{0}=""([^""]*)""", varName ) );
-            var match = regex.Match( header );
+            if ( String.IsNullOrWhiteSpace( header ) )
+                return results;
 
-            if ( match.Success )
-                return match.Groups[1].Value;
+            Dictionary<string, string> dict = header.PairsToDictionary(true);
 
-            throw new ApplicationException( string.Format( "Header {0} not found", varName ) );
-        }
+            results.Realm = ( dict.ContainsKey( "realm" ) ) ? dict["realm"] : String.Empty;
+            results.Nonce = ( dict.ContainsKey( "nonce" ) ) ? dict["nonce"] : String.Empty;
+            results.QoP = ( dict.ContainsKey( "qop" ) ) ? dict["qop"] : String.Empty;
 
-        /// <summary>Hashing an input string to its MD5 checksum and returns in hex format</summary>
-        private static string HashToMD5( string input )
-        {
-            if ( String.IsNullOrWhiteSpace( input ) )
-                return String.Empty;
-
-            byte[] hash = MD5.Create().ComputeHash( Encoding.ASCII.GetBytes( input ) );
-
-            return String.Join( String.Empty, Array.ConvertAll( hash, b => b.ToString( "X2" ) ) ).ToLowerInvariant();
+            return results;
         }
 
         /// <summary>Decompress a GZip stream into its original bytes</summary>
