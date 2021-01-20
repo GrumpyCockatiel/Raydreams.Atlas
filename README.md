@@ -52,6 +52,14 @@ For obvious security reasons this file has been removed, because, you know, I st
 
 The Public and Private Key you will get from inside your Atlas Dashboard (see below how to make the keys).
 
+The Project ID (aka Group ID) can be found by using this API or it's also in the URL on the dashboard
+```
+https://cloud.mongodb.com/v2/<someKey>
+```
+
+The Cluster Names are the plain text names you see in the Dashboard.
+
+
 ```
 <?xml version="1.0" encoding="utf-8"?>
     <configuration>
