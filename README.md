@@ -82,6 +82,8 @@ Copy the Public Key (though this is easy to get back) and click next.
 Now copy the private key before leaving this screen. This is the only time you can see it.
 Click Add Access List Entry which is just an IP permit list. You can choose to allow any IP with `0.0.0.0/0` but I strongly suggest you limit the IP ranges this key can be used.
 
+FYI - These aren't real keys in the screenshots.
+
 ![Atlas 3](./readme/atlas-3.png)
 
 Save the first IP. You can add more later.
