@@ -39,6 +39,8 @@ AtlasCluster results = app.PauseCluster( projectID, clusterName, true );
 
 You need to supply a delegate to generate a client nonce which in this case is just 8 random chars. You can use the one included in this code if you don't already have something similar.
 
+Also remember the code is async so you'll need to either wait or let it run async.
+
 ## The Atlas API
 
 Here is the [Atlas API documention](https://docs.atlas.mongodb.com/reference/api-resources)
