@@ -52,3 +52,16 @@ The Public and Private Key you will get from inside your Atlas Dashboard (see be
 
 You'll need to setup an API Key to use the Atlas APIs. Atlas offers tutorials on this but here's the basics yet again:
 
+Beaware to can setup at Key at either the Organization or Project Level, or both. However, obviously keys at the org level are very powerful and have a lot more rights. I suggest you stick to the project level unless you are building utilities to manage **all** your projects in once place.
+
+Next to the Project Name click the ellipse and choose Project Settings and then Access Manager, and finally over to the API Keys tab (yea, I know, the Atlas UI is not the greatest).
+
+![Atlas 1](./readme/atlas-1.png)
+
+![Atlas 2](./readme/atlas-2.png)
+
+![Atlas 3](./readme/atlas-3.png)
+
+![Atlas 4](./readme/atlas-4.png)
+
+![Atlas 5](./readme/atlas-5.png)
