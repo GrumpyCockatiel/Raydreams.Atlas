@@ -58,10 +58,22 @@ Next to the Project Name click the ellipse and choose Project Settings and then 
 
 ![Atlas 1](./readme/atlas-1.png)
 
+Click Create A New Key and give it some description for its use. In order to pause a cluster it has to be a **Project Cluster Manager**.
+Copy the Public Key (though this is easy to get back) and click next.
+
 ![Atlas 2](./readme/atlas-2.png)
+
+Now copy the private key before leaving this screen. This is the only time you can see it.
+Click Add Access List Entry which is just an IP permit list. You can choose to allow any IP with `0.0.0.0/0` but I strongly suggest you limit the IP ranges this key can be used.
 
 ![Atlas 3](./readme/atlas-3.png)
 
+Save the first IP. You can add more later.
+
 ![Atlas 4](./readme/atlas-4.png)
 
+The final screen shows your new key and lets you edit it.
+
 ![Atlas 5](./readme/atlas-5.png)
+
+Got that! Great!
