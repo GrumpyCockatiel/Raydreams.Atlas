@@ -12,7 +12,15 @@ The `AtlasManager.cs` and `AtlasObjects.cs` files are the only fiiles you need t
 
 This is written as a command line exe that loads the public and private keys from an app.config file (see below). You should be really careful where you put these keys in the real world. I strongly advise using something like Azure KeyVault. Seriously, you're an idiot if you store production keys in a plain text config file like most of corporate American does.
 
+## Usage
+
+Like I said, this is a demo from a CL exe. The irony is I use this code from an Azure Function called by an Azure Logic app on a reoccurrence schedule.
+
+You can of course hit this API from a tool like Postman but you are mostly likely here because you want to setup some kind of schedule.
+
 ## The Atlas API
+
+Here is the ![Atlas API documention](https://docs.atlas.mongodb.com/reference/api-resources)
 
 The Atlas API has this format:
 
@@ -77,3 +85,9 @@ The final screen shows your new key and lets you edit it.
 ![Atlas 5](./readme/atlas-5.png)
 
 Got that! Great!
+
+## Other Help
+
+There's also a ![Python implementation](https://github.com/jdrumgoole/MongoDB-Atlas-API) which has more of the implemented API functions.
+
+Mongo also has a ![Blog Tutorial](https://www.mongodb.com/blog/post/atlas-cluster-automation-using-scheduled-triggers) if you want to use the triggers and Realm but honestly I found this way rediculously convoluted.
