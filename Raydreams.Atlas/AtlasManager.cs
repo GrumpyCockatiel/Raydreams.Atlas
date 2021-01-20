@@ -9,6 +9,7 @@ using System.IO.Compression;
 using Newtonsoft.Json;
 using System.Linq;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace Raydreams.Atlas
 {
@@ -31,16 +32,16 @@ namespace Raydreams.Atlas
     {
         #region [ Fields ]
 
-        /// <summary></summary>
+        /// <summary>The Atlas API Authority</summary>
         private string _apiBase = "https://cloud.mongodb.com";
 
-        /// <summary></summary>
+        /// <summary>The Atlas Base API Path</summary>
         private string _dir = "/api/atlas/v1.0";
 
-        /// <summary></summary>
+        /// <summary>The API Private Key</summary>
         private string _privateKey = String.Empty;
 
-        /// <summary></summary>
+        /// <summary>The API Public Key</summary>
         private string _publicKey = String.Empty;
 
         #endregion [ Fields ]
@@ -58,7 +59,7 @@ namespace Raydreams.Atlas
 
         #endregion [ Constructor ]
 
-        // <summary>Create a Client</summary>
+        // <summary>Create a new HTTP client to Atlas API</summary>
         protected HttpClient Client( Uri uri )
         {
             // setup the credentials
@@ -77,12 +78,17 @@ namespace Raydreams.Atlas
             client.DefaultRequestHeaders.Add( "Host", "cloud.mongodb.com" );
             client.DefaultRequestHeaders.Add( "User-Agent", "PostmanRuntime/7.26.8" );
             client.DefaultRequestHeaders.Add( "Connection", "keep-alive" );
-            client.DefaultRequestHeaders.Add( "Accept-Encoding", "gzip, deflate, br" );
+
+            string encoding = ( this.ZipResponse ) ? "gzip, deflate, br" : "json";
+            client.DefaultRequestHeaders.Add( "Accept-Encoding", encoding );
 
             return client;
         }
 
         #region [ Properties ]
+
+        /// <summary>If set to true the client with request a GZipped response</summary>
+        public bool ZipResponse { get; set; } = false;
 
         /// <summary>Set this delegate to generate a CNonce value</summary>
         public CNonceGenerator Noncer { get; set; }
@@ -93,42 +99,80 @@ namespace Raydreams.Atlas
 
         /// <summary>Gets the list of Projects (aka Groups) this key has access to</summary>
         /// <returns></returns>
-        public AtlasOrgProject GetProjects()
+        public async Task<AtlasOrgProject> GetProjects()
         {
-            string path = $"{_dir}/groups";
-            Uri uri = new Uri( $"{_apiBase}{path}" );
+            Uri uri = new Uri( $"{_apiBase}{_dir}/groups" );
 
             HttpResponseMessage final = null;
 
             try
             {
-                HttpClient client = this.Client( uri );
-
-                HttpRequestMessage msg1 = new HttpRequestMessage( HttpMethod.Get, uri );
-                msg1.Headers.Clear();
-
-                // send the first request
-                HttpResponseMessage response1 = client.SendAsync( msg1 ).GetAwaiter().GetResult();
-
-                // at this point we expect a 401 with details for the Authorization header
-
-                // pull apart the auth response
-                string authHeader = response1.Headers.WwwAuthenticate.ToString();
-                WWWAuthFields header = this.ParseWWWAuth( authHeader );
-
-                // send a 2nd request with Authorization populated with details from www-authenticate
-                HttpRequestMessage msg2 = new HttpRequestMessage( HttpMethod.Get, uri );
-                msg2.Headers.Clear();
-                msg2.Headers.Add( "Authorization", GetDigestHeader( $"{path}", header, HttpMethod.Get ) );
-                final = client.SendAsync( msg2 ).GetAwaiter().GetResult();
+                final = await this.GetRequest( uri );
             }
             catch ( System.Exception )
             {
                 throw;
             }
 
-            string json = ( IsGZipped( final ) ) ? Decompress( final ) : final.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            string json = ( IsGZipped( final ) ) ? Decompress( final ) : await final.Content.ReadAsStringAsync();
             return JsonConvert.DeserializeObject<AtlasOrgProject>( json );
+        }
+
+        /// <summary>Gets all the cluster info for all clusters in a Project</summary>
+        /// <param name="projID"></param>
+        /// <returns></returns>
+        public async Task<AtlasProjectClusters> GetClusters( string projID )
+        {
+            if ( String.IsNullOrWhiteSpace( projID )  )
+                return null;
+
+            projID = projID.Trim();
+
+            Uri uri = new Uri( $"{_apiBase}{_dir}/groups/{projID}/clusters" );
+
+            HttpResponseMessage final = null;
+
+            try
+            {
+                final = await this.GetRequest( uri );
+            }
+            catch ( System.Exception )
+            {
+                throw;
+            }
+
+            string json = ( IsGZipped( final ) ) ? Decompress( final ) : await final.Content.ReadAsStringAsync();
+            return JsonConvert.DeserializeObject<AtlasProjectClusters>( json );
+
+        }
+
+        /// <summary>Returns all the details of the specified cluster</summary>
+        /// <param name="projID"></param>
+        /// <param name="clusterName"></param>
+        /// <returns></returns>
+        public async Task<AtlasCluster> GetClusterInfo( string projID, string clusterName )
+        {
+            if ( String.IsNullOrWhiteSpace( projID ) || String.IsNullOrWhiteSpace( clusterName ) )
+                return null;
+
+            projID = projID.Trim();
+            clusterName = clusterName.Trim();
+
+            Uri uri = new Uri( $"{_apiBase}{_dir}/groups/{projID}/clusters/{clusterName}" );
+
+            HttpResponseMessage final = null;
+
+            try
+            {
+                final = await this.GetRequest( uri );
+            }
+            catch ( System.Exception )
+            {
+                throw;
+            }
+
+            string json = ( IsGZipped( final ) ) ? Decompress(final) : await final.Content.ReadAsStringAsync();
+            return JsonConvert.DeserializeObject<AtlasCluster>( json );
         }
 
         /// <summary>Pause or resume the specified cluster</summary>
@@ -195,105 +239,44 @@ namespace Raydreams.Atlas
             return JsonConvert.DeserializeObject<AtlasCluster>( json );
         }
 
-        /// <summary>Gets all the cluster info for all clusters in a Project</summary>
-        /// <param name="projID"></param>
-        /// <returns></returns>
-        public AtlasProjectClusters GetClusters( string projID )
-        {
-            if ( String.IsNullOrWhiteSpace( projID )  )
-                return null;
-
-            projID = projID.Trim();
-
-            string path = $"{_dir}/groups/{projID}/clusters";
-            Uri uri = new Uri( $"{_apiBase}{path}" );
-
-            HttpResponseMessage final = null;
-
-            try
-            {
-                HttpClient client = this.Client( uri );
-
-                HttpRequestMessage msg1 = new HttpRequestMessage( HttpMethod.Get, uri );
-                msg1.Headers.Clear();
-
-                // send the first request
-                HttpResponseMessage response1 = client.SendAsync( msg1 ).GetAwaiter().GetResult();
-
-                // at this point we expect a 401 with details for the Authorization header
-
-                // pull apart the auth response
-                string authHeader = response1.Headers.WwwAuthenticate.ToString();
-                WWWAuthFields header = this.ParseWWWAuth( authHeader );
-
-                // send a 2nd request with Authorization populated with details from www-authenticate
-                HttpRequestMessage msg2 = new HttpRequestMessage( HttpMethod.Get, uri );
-                msg2.Headers.Clear();
-                msg2.Headers.Add( "Authorization", GetDigestHeader( path, header, HttpMethod.Get ) );
-                final = client.SendAsync( msg2 ).GetAwaiter().GetResult();
-            }
-            catch ( System.Exception )
-            {
-                throw;
-            }
-
-            string json = ( IsGZipped( final ) ) ? Decompress( final ) : final.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-            return JsonConvert.DeserializeObject<AtlasProjectClusters>( json );
-
-        }
-
-        /// <summary>Returns all the details of the specified cluster</summary>
-        /// <param name="projID"></param>
-        /// <param name="clusterName"></param>
-        /// <returns></returns>
-        public AtlasCluster GetClusterInfo( string projID, string clusterName )
-        {
-            if ( String.IsNullOrWhiteSpace( projID ) || String.IsNullOrWhiteSpace( clusterName ) )
-                return null;
-
-            projID = projID.Trim();
-            clusterName = clusterName.Trim();
-
-            string path = $"{_dir}/groups/{projID}/clusters/{clusterName}";
-            Uri uri = new Uri( $"{_apiBase}{path}" );
-
-            HttpResponseMessage final = null;
-
-            try
-            {
-                HttpClient client = this.Client( uri );
-
-                HttpRequestMessage msg1 = new HttpRequestMessage( HttpMethod.Get, uri );
-                msg1.Headers.Clear();
-
-                // send the first request
-                HttpResponseMessage response1 = client.SendAsync( msg1 ).GetAwaiter().GetResult();
-
-                // at this point we expect a 401 with details for the Authorization header
-
-                // pull apart the auth response
-                string authHeader = response1.Headers.WwwAuthenticate.ToString();
-                WWWAuthFields header = this.ParseWWWAuth( authHeader );
-
-                // send a 2nd request with Authorization populated with details from www-authenticate
-                HttpRequestMessage msg2 = new HttpRequestMessage( HttpMethod.Get, uri );
-                msg2.Headers.Clear();
-                msg2.Headers.Add( "Authorization", GetDigestHeader( path, header, HttpMethod.Get ) );
-                final = client.SendAsync( msg2 ).GetAwaiter().GetResult();
-            }
-            catch ( System.Exception )
-            {
-                throw;
-            }
-
-            string json = ( IsGZipped( final ) ) ? Decompress(final) : final.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-
-            return JsonConvert.DeserializeObject<AtlasCluster>( json );
-        }
-
         #endregion [ API Methods ]
 
         #region [ Private Methods ]
+
+        /// <summary></summary>
+        /// <param name="uri"></param>
+        /// <returns></returns>
+        protected async Task<HttpResponseMessage> GetRequest( Uri uri )
+        {
+            HttpResponseMessage final = null;
+
+            if ( uri == null || String.IsNullOrWhiteSpace(uri.AbsoluteUri) )
+                return final;
+
+            // setup a new client
+            HttpClient client = this.Client( uri );
+
+            // setup the first request
+            HttpRequestMessage req1 = new HttpRequestMessage( HttpMethod.Get, uri );
+            req1.Headers.Clear();
+
+            // send the 'login' request
+            HttpResponseMessage response1 = await client.SendAsync( req1 );
+
+            // at this point we expect a 401 with details for the Authorization header
+
+            // pull apart the auth response
+            string authHeader = response1.Headers.WwwAuthenticate.ToString();
+            WWWAuthFields header = this.ParseWWWAuth( authHeader );
+
+            // send a 2nd request with Authorization populated with details from www-authenticate
+            HttpRequestMessage req2 = new HttpRequestMessage( HttpMethod.Get, uri );
+            req2.Headers.Clear();
+            req2.Headers.Add( "Authorization", GetDigestHeader( uri.AbsolutePath, header, HttpMethod.Get ) );
+            final = await client.SendAsync( req2 );
+
+            return final;
+        }
 
         /// <summary>Checks to see if the Content Response is GZipped</summary>
         /// <param name="resp"></param>

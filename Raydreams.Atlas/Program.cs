@@ -55,13 +55,13 @@ namespace Raydreams.Atlas
                 };
 
                 // get the org's list of projects
-                AtlasOrgProject results = app.GetProjects();
+                //AtlasOrgProject results = app.GetProjects().GetAwaiter().GetResult();
 
                 // get all the clusters in a project
-                //AtlasProjectClusters results = app.GetClusters( projectID );
+                //AtlasProjectClusters results = app.GetClusters( projectID ).GetAwaiter().GetResult();
 
                 // get info about the specified cluster
-                //AtlasCluster results = app.GetClusterInfo( projectID, clusterName );
+                AtlasCluster results = app.GetClusterInfo( projectID, clusterName ).GetAwaiter().GetResult();
 
                 // pause or resume a cluster by name, true will pause, false will resume
                 //AtlasCluster results = app.PauseCluster( projectID, clusterName, true );
