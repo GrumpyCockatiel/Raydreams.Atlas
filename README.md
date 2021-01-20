@@ -6,6 +6,12 @@ This is example code to access your Atlas Mongo Clusters. In order to do this yo
 
 There's no warranty with this code and you use it at your own risk. It has not been rigorously tested. If you spot an issue, let me know.
 
+## Background
+
+Mongo charges you simply for up time on their clusters. It's running, you get charged. Even worse, while you can pause a cluster manually from the Dashboard UI, you cannot setup a schedule like you can like on AWS, Azure and I'm sure probably Google. I guess Mongo didn't get the memo.
+
+So if you want to save some money on your Atlas deployments for non-production environments, why not setup your own scheduler.
+
 ## Description
 
 The `AtlasManager.cs` and `AtlasObjects.cs` files are the only fiiles you need to use this. I've included some other convenience functions for demo purposes.
@@ -17,6 +23,8 @@ This is written as a command line exe that loads the public and private keys fro
 Like I said, this is a demo from a CL exe. The irony is I use this code from an Azure Function called by an Azure Logic app on a reoccurrence schedule.
 
 You can of course hit this API from a tool like Postman but you are mostly likely here because you want to setup some kind of schedule.
+
+Be aware you cannot pause a Sandbox cluster because, you know, you aren't the only one using it so that would be stupid. However, you can still query it with these APIs.
 
 ## The Atlas API
 
