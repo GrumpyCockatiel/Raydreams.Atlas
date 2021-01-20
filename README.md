@@ -26,6 +26,19 @@ You can of course hit this API from a tool like Postman but you are mostly likel
 
 Be aware you cannot pause a Sandbox cluster because, you know, you aren't the only one using it so that would be stupid. However, you can still query it with these APIs.
 
+Using this code to pause a cluster is as simple as:
+
+```
+AtlasManager app = new AtlasManager( publicKey, privateKey )
+{
+    Noncer = (int n) => { return rnd.RandomCode( n ); }
+};
+AtlasCluster results = app.PauseCluster( projectID, clusterName, true );
+
+```
+
+You need to supply a delegate to generate a client nonce which in this case is just 8 random chars. You can use the one included in this code if you don't already have something similar.
+
 ## The Atlas API
 
 Here is the [Atlas API documention](https://docs.atlas.mongodb.com/reference/api-resources)
