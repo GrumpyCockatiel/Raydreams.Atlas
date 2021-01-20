@@ -20,7 +20,7 @@ You can of course hit this API from a tool like Postman but you are mostly likel
 
 ## The Atlas API
 
-Here is the ![Atlas API documention](https://docs.atlas.mongodb.com/reference/api-resources)
+Here is the [Atlas API documention](https://docs.atlas.mongodb.com/reference/api-resources)
 
 The Atlas API has this format:
 
@@ -88,6 +88,6 @@ Got that! Great!
 
 ## Other Help
 
-There's also a ![Python implementation](https://github.com/jdrumgoole/MongoDB-Atlas-API) which has more of the implemented API functions.
+There's also a [Python implementation](https://github.com/jdrumgoole/MongoDB-Atlas-API) which has more of the implemented API functions.
 
-Mongo also has a ![Blog Tutorial](https://www.mongodb.com/blog/post/atlas-cluster-automation-using-scheduled-triggers) if you want to use the triggers and Realm but honestly I found this way rediculously convoluted.
+Mongo also has a [Blog Tutorial](https://www.mongodb.com/blog/post/atlas-cluster-automation-using-scheduled-triggers) if you want to use the triggers and Realm but honestly I found this way rediculously convoluted.
